@@ -12,7 +12,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(req: Request) {
   const body = await req.text();
-  const signature = headers().get("Stripe-Signature") as string;
+  const signature = headers().get("Stripe-Signature");
 
   if (!signature) {
     console.error("No Stripe signature found");
@@ -27,12 +27,15 @@ export async function POST(req: Request) {
       signature,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
-  } catch (err: any) {
-    console.error(`Webhook signature verification failed: ${err.message}`);
-    return NextResponse.json(
-      { error: `Webhook Error: ${err.message}` },
-      { status: 400 }
-    );
+  } catch (err: unknown) {
+    if (err instanceof Error) {
+      console.error(`Webhook signature verification failed: ${err.message}`);
+      return NextResponse.json(
+        { error: `Webhook Error: ${err.message}` },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json({ error: "Unknown error occurred" }, { status: 500 });
   }
 
   console.log(`Received event type: ${event.type}`);
@@ -109,10 +112,16 @@ export async function POST(req: Request) {
       await updateUserPoints(userId, pointsToAdd);
 
       console.log(`Successfully processed subscription for user ${userId}`);
-    } catch (error: any) {
-      console.error("Error processing subscription:", error);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error("Error processing subscription:", error);
+        return NextResponse.json(
+          { error: "Error processing subscription", details: error.message },
+          { status: 500 }
+        );
+      }
       return NextResponse.json(
-        { error: "Error processing subscription", details: error.message },
+        { error: "Unknown error occurred during subscription processing" },
         { status: 500 }
       );
     }
